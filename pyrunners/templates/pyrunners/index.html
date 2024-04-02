@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>在线运行C++</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.58.3/codemirror.min.css"/>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            margin-top: 20px;
+            width: 66%;
+            margin: auto;
+        }
+        .CodeMirror {
+            border: 1px solid #eee;
+            height: 200;
+            min-height: 300px;
+        }
+        textarea {
+            padding: 10px;
+            font-size: 16px;
+            margin-bottom: 10px;
+            width: 100%;
+            min-height: 200px;
+            overflow: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: black;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>在线运行C++</h1>
+    <div class="container">
+        <div id="file-list"></div>
+        <button id="add-button">添加文件</button>
+        <button id="save-button">保存</button>
+        <textarea id="code"></textarea>
+        <button id="run-button">运行</button>
+        <textarea id="output" rows="10" cols="50" readonly></textarea>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.58.3/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.58.3/mode/clike/clike.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jQuery-contextMenu/2.9.2/jquery.contextMenu.min.js"></script>
+    <link href="https://cdn.bootcdn.net/ajax/libs/jQuery-contextMenu/2.9.2/jquery.contextMenu.min.css" rel="stylesheet" type="text/css"/>
+    <script>
+    $(document).ready(function() {
+        console.log($.contextMenu);  // 必须在页面加载 jQuery 和 contextMenu 库之后运行该代码
+        // 更新文件列表
+        var currentFile = 'main.cpp';
+
+        function updateFileList() {
+            $('#file-list').empty();
+            $.ajax({
+                url: '/file-list/',
+                method: 'GET',
+                success: function(response) {
+                        for (let file of response) {
+                            let fileElement = $('<span>').text(file).addClass('file-item');
+                            let renameButton = $('<span>').text('修改名字').addClass('btn rename-btn').hide();
+                            let deleteButton = $('<span>').text('删除').addClass('btn delete-btn').hide();
+
+                            // 如果文件名是 main.cpp，就显示修改名字和删除按钮
+                            if (file === 'main.cpp') {
+                                renameButton.show();
+                                deleteButton.show();
+                                $.ajax({
+                                    url: '/load-file/',
+                                    method: 'POST',
+                                    data: { filename: file },
+                                    success: function(response) {
+                                        editor.setValue(response.fileContent);
+                                        // 隐藏所有的 'rename-btn' 和 'delete-btn' 按钮
+                                        $('.rename-btn').hide();
+                                        $('.delete-btn').hide();
+                                        // 显示当前选择文件的 'rename-btn' 和 'delete-btn' 按钮
+                                        renameButton.show();
+                                        deleteButton.show();
+                                    }
+                                });
+                            }
+
+                            fileElement.click(function() {
+                                // 加载文件内容
+                                currentFile = file;
+                                $.ajax({
+                                    url: '/load-file/',
+                                    method: 'POST',
+                                    data: { filename: file },
+                                    success: function(response) {
+                                        editor.setValue(response.fileContent);
+                                        // 隐藏所有的 'rename-btn' 和 'delete-btn' 按钮
+                                        $('.rename-btn').hide();
+                                        $('.delete-btn').hide();
+                                        // 显示当前选择文件的 'rename-btn' 和 'delete-btn' 按钮
+                                        renameButton.show();
+                                        deleteButton.show();
+                                    }
+                                });
+                            });
+
+                            // 为 “修改名字” 和 “删除” 按钮添加点击事件
+                            renameButton.click(function() {
+                                let new_filename = prompt("请输入新的文件名");
+                                $.ajax({
+                                    url: '/rename-file/',
+                                    method: 'POST',
+                                    data: { old_filename: file, new_filename: new_filename },
+                                    success: function(response) {
+                                        updateFileList();
+                                    }
+                                });
+                            });
+
+                            deleteButton.click(function() {
+                                $.ajax({
+                                    url: '/delete-file/',
+                                    method: 'POST',
+                                    data: { filename: file },
+                                    success: function(response) {
+                                        updateFileList();
+                                    }
+                                });
+                            });
+
+                            let listItem = $('<div>').append(fileElement, renameButton, deleteButton);
+                            $('#file-list').append(listItem);
+                        }
+                }
+            });
+        }
+
+
+        updateFileList();
+
+        // 创建CodeMirror实例
+        var editor = CodeMirror.fromTextArea(document.getElementById('code'), {
+            lineNumbers: true,
+            mode: "text/x-c++src"
+        });
+
+        $('#save-button').click(function() {
+            console.log('保存按钮被点击');
+            var code = editor.getValue();
+            console.log('获取到代码:', code);
+            console.log('当前文件:', currentFile);
+            $.ajax({
+                url: '/save-file/',
+                method: 'POST',
+                data: { filename: currentFile, code: code },
+                success: function(response) {
+                    if(response.status === "ok") {
+                        alert("保存成功");
+                    } else {
+                        alert("保存失败");
+                    }
+                }
+            });
+        });
+
+
+        // 运行按钮点击事件
+        $('#run-button').click(function() {
+            var code = editor.getValue();
+            $.ajax({
+                url: '/',
+                method: 'POST',
+                data: { code: code },
+                complete: function(response) {
+                    $('#output').text(response.responseText);
+                }
+            });
+        });
+
+
+
+        // 添加文件按钮点击事件
+        $('#add-button').click(function() {
+            let filename = prompt("请输入文件名");
+            $.ajax({
+                url: '/add-file/',
+                method: 'POST',
+                data: { filename: filename },
+                success: function(response) {
+                    updateFileList();
+                }
+            });
+        });
+
+        $.ajax({
+            url: '/load-file/',
+            method: 'POST',
+            data: { filename: currentFile},
+            success: function(response) {
+                editor.setValue(response.fileContent);
+            }
+        });
+
+    });
+    </script>
+
+
+</body>
+</html>
