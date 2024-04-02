@@ -1,40 +1,45 @@
+import os
+import subprocess
+from pathlib import Path
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-import subprocess
-from django.http import JsonResponse
-from pathlib import Path
-import os
 
-# 添加允许跨站请求的装饰器
 @csrf_exempt
 def index(request):
     if request.method == 'POST':
         user_code = request.POST.get('code', None)
-        filename = 'main'
+        file_code_dir = 'file_code'
 
-        with open(f'{filename}.cpp', 'w') as f:
-            f.write(user_code)
+        os.makedirs(file_code_dir,exist_ok=True)  # 这一行会确保文件夹已经存在，如果不存在会创建
 
-        compile_cmd = f'g++ {filename}.cpp -o {filename}.exe'
+        # 找到所有的.cpp文件
+        all_cpp_files = [str(filepath) for filepath in Path(file_code_dir).glob('*.cpp')]
+
+        compile_cmd = f'g++ {" ".join(all_cpp_files)} -o {file_code_dir}/main.exe'
 
         proc_compile = subprocess.run(compile_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         if proc_compile.returncode != 0:
-            error_message = proc_compile.stderr.decode('ISO-8859-1') if proc_compile.stderr else '编译过程中没有产生任何输出'
+            error_message = proc_compile.stderr.decode('ISO-8859-1') if proc_compile.stderr else 'no error'
             return JsonResponse({'error': error_message})
 
-        run_cmd = f'{filename}.exe'
+        run_cmd = os.path.abspath(os.path.join(file_code_dir, 'main.exe'))
 
-        proc_run = subprocess.run(run_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc_run = subprocess.Popen(run_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        output_message = proc_run.stdout.decode('ISO-8859-1') if proc_run.stdout else '程序运行没有产生任何输出'
-        error_message = proc_run.stderr.decode('ISO-8859-1') if proc_run.stderr else '程序运行中没有报错信息'
+        output, error = proc_run.communicate()
 
+        output_message = output.decode() if output else 'no output'
+
+        error_message = error.decode() if error else 'no error'
+
+        # 返回JSON响应
         return JsonResponse({'output': output_message, 'error': error_message})
     else:
-        return render(request, 'pyrunners/index.html')
+        return render(request, 'pyrunners/yuanindex.html')
 
-
+@csrf_exempt
 def file_list(request):
     files = [f.name for f in Path('pyrunners/file_code').glob('*.cpp')]
     files += [f.name for f in Path('pyrunners/file_code').glob('*.h')]

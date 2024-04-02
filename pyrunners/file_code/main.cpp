@@ -1,29 +1,26 @@
-class Solution {
-public:
-    vector<vector<int>> threeSum(vector<int>& nums) {
-        sort(nums.begin(), nums.end());
+#include <primes.h>
+#include <iostream>
+#include <cmath>
 
-        vector<vector<int>> v;
-
-        for(int help = 0; help < nums.size(); ++help) {
-            if(help > 0 && nums[help] == nums[help-1]) continue;
-            
-            int left = help + 1;
-            int right = nums.size() - 1;
-            while(left < right) {
-                int sum = nums[help] + nums[left] + nums[right];
-                if(sum < 0) {
-                    ++left;
-                } else if(sum > 0) {
-                    --right;
-                } else {
-                    v.push_back({nums[help], nums[left], nums[right]});
-                    while(left < right && nums[left] == nums[left+1]) ++left;
-                    while(left < right && nums[right] == nums[right-1]) --right;
-                    ++left; --right;
-                }
-            }
-        }
-        return v;
+bool isPrime(int number) {
+    if (number <= 1) return false;
+    if (number == 2) return true;
+    if (number % 2 == 0) return false;
+    for (int i = 3; i <= sqrt(number); i += 2) {
+        if (number % i == 0) return false;
     }
-};
+    return true;
+}
+
+int main() {
+    int sum = 0;
+    for (int i = 2; i < 1000; ++i) {
+        if (isPrime(i)) {
+            sum += i;
+        }
+    }
+
+    std::cout<< sum << std::endl;
+
+    return 0;
+}
